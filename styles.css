@@ -599,15 +599,28 @@ select {
 }
 
 .settings-row {
-  grid-template-columns: minmax(0, 1fr) 112px 112px 34px;
+  grid-template-columns: 1fr;
+  gap: 8px;
 }
 
-.settings-header {
-  min-height: 34px;
+.mobile-field-label {
+  display: grid;
+  gap: 5px;
+}
+
+.mobile-field-label span {
+  display: block;
   color: var(--muted);
   font-size: 12px;
   font-weight: 800;
-  background: transparent;
+}
+
+.settings-header {
+  display: none;
+}
+
+.settings-row .icon-button {
+  width: 100%;
 }
 
 .participant-row {
@@ -722,6 +735,7 @@ select {
   }
 
   .compact-chrome .project-switcher,
+  .compact-chrome .nav-tabs,
   .compact-chrome .sidebar-actions,
   .compact-chrome .topbar-actions,
   .compact-chrome .eyebrow,
@@ -734,19 +748,27 @@ select {
     position: sticky;
     top: 0;
     z-index: 20;
-    padding-bottom: 10px;
+    padding: 10px 12px;
+    gap: 0;
   }
 
   .compact-chrome .workspace {
-    padding-top: 10px;
+    padding-top: 8px;
   }
 
   .compact-chrome .topbar {
-    margin-bottom: 10px;
+    display: none;
   }
 
-  .compact-chrome .topbar h2 {
-    font-size: 21px;
+  .compact-chrome .brand {
+    gap: 8px;
+  }
+
+  .compact-chrome .brand h1 {
+    max-width: 150px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 
   .topbar {
@@ -771,6 +793,35 @@ select {
   }
 
   .settlement-row {
+    grid-template-columns: 1fr;
+  }
+
+  .settings-row {
+    grid-template-columns: 1fr;
+    gap: 8px;
+  }
+
+  .mobile-field-label {
+    display: grid;
+    gap: 5px;
+  }
+
+  .mobile-field-label span {
+    display: block;
+    color: var(--muted);
+    font-size: 12px;
+    font-weight: 800;
+  }
+
+  .settings-header {
+    display: none;
+  }
+
+  .settings-row .icon-button {
+    width: 100%;
+  }
+
+  .participant-row {
     grid-template-columns: 1fr;
   }
 }

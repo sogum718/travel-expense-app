@@ -1,9 +1,9 @@
-const CACHE_NAME = "travel-expense-app-v20260618-pwa";
+const CACHE_NAME = "travel-expense-app-v20260618-remove-currency-header";
 const APP_SHELL = [
   "./",
   "./index.html",
-  "./styles.css?v=20260618-no-sample-buttons",
-  "./app.js?v=20260618-pwa",
+  "./styles.css?v=20260618-remove-currency-header",
+  "./app.js?v=20260618-remove-currency-header",
   "./manifest.webmanifest?v=20260618-pwa",
   "./icons/icon.svg",
 ];
@@ -25,6 +25,18 @@ self.addEventListener("activate", (event) => {
 
 self.addEventListener("fetch", (event) => {
   if (event.request.method !== "GET") return;
+  if (event.request.mode === "navigate") {
+    event.respondWith(
+      fetch(event.request)
+        .then((response) => {
+          const copy = response.clone();
+          caches.open(CACHE_NAME).then((cache) => cache.put("./index.html", copy));
+          return response;
+        })
+        .catch(() => caches.match("./index.html")),
+    );
+    return;
+  }
   event.respondWith(
     caches.match(event.request).then((cached) => {
       if (cached) return cached;

@@ -153,10 +153,9 @@ const emptyState = {
   endDate: "",
   travelMode: "group",
   homeCurrency: "KRW",
-    currencies: [
-      { code: "KRW", startingCash: 0, startingRate: 1 },
-      { code: "USD", startingCash: 0, startingRate: "" },
-      { code: "COP", startingCash: 0, startingRate: "" },
+  currencies: [
+    { code: "KRW", startingCash: 0, startingRate: 1 },
+    { code: "USD", startingCash: 0, startingRate: "" },
   ],
   categories: ["항공", "숙소", "교통", "식비", "활동", "쇼핑", "통신", "보험", "기타", "환전"],
   participants: ["나", "동행1"],
@@ -164,7 +163,9 @@ const emptyState = {
 };
 
 let appState = loadState();
+appState.projects.forEach(pruneUnusedDefaultCurrencies);
 let state = getCurrentProject();
+saveState();
 
 const $ = (id) => document.getElementById(id);
 
@@ -190,7 +191,7 @@ function normalizeProject(project) {
         .split(",")
         .map((item) => item.trim())
         .filter(Boolean);
-  return {
+  const normalized = {
     ...clone(emptyState),
     ...project,
     id: project.id || crypto.randomUUID(),
@@ -209,6 +210,17 @@ function normalizeProject(project) {
     participants: project.participants?.length ? project.participants : ["나"],
     transactions: project.transactions || [],
   };
+  pruneUnusedDefaultCurrencies(normalized);
+  return normalized;
+}
+
+function pruneUnusedDefaultCurrencies(project) {
+  const hasCopUse = project.transactions.some((transaction) => transaction.currency === "COP");
+  project.currencies = project.currencies.filter((currency) => {
+    if (currency.code !== "COP") return true;
+    if (hasCopUse) return true;
+    return Number(currency.startingCash || 0) !== 0;
+  });
 }
 
 function loadState() {
@@ -564,7 +576,7 @@ function syncModeUi(mode = state.travelMode) {
 
 function setCompactChrome(enabled) {
   document.body.classList.toggle("compact-chrome", enabled);
-  $("toggleChromeButton").textContent = enabled ? "상단 펼치기" : "간편 보기";
+  $("toggleChromeButton").textContent = enabled ? "메뉴 열기" : "메뉴 닫기";
   localStorage.setItem("travel-expense-compact-chrome", enabled ? "1" : "0");
 }
 
@@ -807,10 +819,13 @@ function renderSettings() {
   state.currencies.forEach((currency, index) => {
     const row = document.createElement("div");
     row.className = "settings-row";
+    row.style.display = "grid";
+    row.style.gridTemplateColumns = "1fr";
+    row.style.gap = "8px";
     row.innerHTML = `
-      <input data-currency-code="${index}" value="${currency.code}" maxlength="3" />
-      <input data-currency-cash="${index}" type="number" step="0.01" value="${currency.startingCash}" />
-      <input data-currency-rate="${index}" type="number" step="0.0001" value="${currency.startingRate ?? ""}" placeholder="KRW/1" />
+      <label class="mobile-field-label"><span>통화 코드</span><input data-currency-code="${index}" value="${currency.code}" maxlength="3" placeholder="USD" aria-label="통화 코드" /></label>
+      <label class="mobile-field-label"><span>초기 현금</span><input data-currency-cash="${index}" type="number" step="0.01" value="${currency.startingCash}" placeholder="0" aria-label="초기 현금" /></label>
+      <label class="mobile-field-label"><span>초기 환율</span><input data-currency-rate="${index}" type="number" step="0.0001" value="${currency.startingRate ?? ""}" placeholder="KRW/1" aria-label="초기 환율" /></label>
       <button class="icon-button" data-remove-currency="${index}" type="button">×</button>
     `;
     $("currencySettings").append(row);
@@ -837,6 +852,8 @@ function renderSettings() {
 }
 
 function renderAll() {
+  pruneUnusedDefaultCurrencies(state);
+  saveState();
   syncModeUi();
   renderSelects();
   renderWeights();
