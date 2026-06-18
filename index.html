@@ -1,0 +1,343 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>여행 가계부</title>
+    <meta name="theme-color" content="#243746" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-title" content="여행 가계부" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <link rel="manifest" href="manifest.webmanifest?v=20260618-pwa" />
+    <link rel="icon" href="icons/icon.svg" type="image/svg+xml" />
+    <link rel="apple-touch-icon" href="icons/icon.svg" />
+    <link rel="stylesheet" href="styles.css?v=20260618-no-sample-buttons" />
+  </head>
+  <body>
+    <div class="app-shell">
+      <aside class="sidebar" aria-label="앱 탐색">
+        <div class="brand">
+          <div class="brand-mark" aria-hidden="true">₩</div>
+          <div>
+            <h1>여행 가계부</h1>
+            <p id="tripNameLabel">Trip Wallet</p>
+          </div>
+          <button id="toggleChromeButton" class="ghost-button compact-toggle" type="button">간편 보기</button>
+        </div>
+        <div class="project-switcher">
+          <label>
+            여행 프로젝트
+            <select id="projectSelect"></select>
+          </label>
+          <button id="newProjectButton" class="ghost-button" type="button">새 프로젝트</button>
+        </div>
+        <nav class="nav-tabs" aria-label="화면">
+          <button class="nav-tab" data-view="projects" type="button">프로젝트</button>
+          <button class="nav-tab active" data-view="dashboard" type="button">대시보드</button>
+          <button class="nav-tab" data-view="entry" type="button">입력</button>
+          <button class="nav-tab" data-view="cash" type="button">현금</button>
+          <button class="nav-tab" data-view="settlement" type="button">정산</button>
+          <button class="nav-tab" data-view="settings" type="button">설정</button>
+        </nav>
+        <div class="sidebar-actions">
+          <button id="exportCsvButton" class="ghost-button" type="button">CSV</button>
+          <button id="exportJsonButton" class="ghost-button" type="button">JSON</button>
+        </div>
+      </aside>
+
+      <main class="workspace">
+        <section class="topbar">
+          <div>
+            <p class="eyebrow">Live travel ledger</p>
+            <h2 id="viewTitle">대시보드</h2>
+            <p id="tripMetaLabel" class="trip-meta"></p>
+          </div>
+          <div class="topbar-actions">
+            <button id="clearButton" class="danger-button" type="button">초기화</button>
+          </div>
+        </section>
+
+        <section id="projectsView" class="view">
+          <section class="panel">
+            <div class="panel-header">
+              <h3>여행 프로젝트</h3>
+              <button id="newProjectButtonMain" class="primary-button" type="button">새 프로젝트</button>
+            </div>
+            <div id="projectCards" class="project-grid"></div>
+          </section>
+        </section>
+
+        <section id="dashboardView" class="view active">
+          <div class="kpi-grid">
+            <article class="metric">
+              <span>총 지출</span>
+              <strong id="totalExpense">0 KRW</strong>
+            </article>
+            <article class="metric">
+              <span>카드/계좌</span>
+              <strong id="cardExpense">0 KRW</strong>
+            </article>
+            <article class="metric">
+              <span>현금 지출</span>
+              <strong id="cashExpense">0 KRW</strong>
+            </article>
+            <article class="metric">
+              <span>거래 건수</span>
+              <strong id="transactionCount">0</strong>
+            </article>
+          </div>
+
+          <div class="dashboard-layout">
+            <section class="panel">
+              <div class="panel-header">
+                <h3>분류별 지출</h3>
+              </div>
+              <div id="categoryBars" class="bar-list"></div>
+            </section>
+            <section class="panel">
+              <div class="panel-header">
+                <h3>현재 현금</h3>
+              </div>
+              <div id="walletCards" class="wallet-grid"></div>
+            </section>
+          </div>
+
+          <section class="panel">
+            <div class="panel-header">
+              <h3>전체 거래내역</h3>
+              <span id="lastUpdated" class="muted"></span>
+            </div>
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>날짜</th>
+                    <th>분류</th>
+                    <th>항목</th>
+                    <th>결제</th>
+                    <th>현지금액</th>
+                    <th>KRW</th>
+                  </tr>
+                </thead>
+                <tbody id="recentRows"></tbody>
+              </table>
+            </div>
+          </section>
+        </section>
+
+        <section id="entryView" class="view">
+          <form id="transactionForm" class="entry-grid">
+            <input type="hidden" id="editingId" />
+            <div class="form-hint entry-advanced">
+              인출은 지갑 현금 증가로 반영됩니다. 이중환전은 빠져나간 통화를 `환전출금`, 받은 통화를 `환전입금`으로 이어서 기록하면 FIFO 원가가 다음 통화로 넘어갑니다.
+            </div>
+            <label>
+              날짜
+              <input id="dateInput" type="date" required />
+            </label>
+            <label>
+              거래유형
+              <select id="typeInput"></select>
+            </label>
+            <label>
+              분류
+              <select id="categoryInput"></select>
+            </label>
+            <label class="wide">
+              항목
+              <input id="itemInput" type="text" required />
+            </label>
+            <label>
+              통화
+              <select id="currencyInput"></select>
+            </label>
+            <label>
+              현지 금액
+              <input id="amountInput" type="number" min="0" step="0.01" required />
+            </label>
+            <label>
+              결제수단
+              <select id="methodInput"></select>
+            </label>
+            <label id="payerField" class="group-only">
+              결제자
+              <select id="payerInput"></select>
+            </label>
+            <label class="entry-advanced">
+              실제 지출액(KRW)
+              <input id="krwInput" type="number" min="0" step="1" />
+            </label>
+            <label class="entry-advanced">
+              적용환율
+              <input id="exchangeRateInput" type="number" min="0" step="0.0001" placeholder="1 현지통화 = KRW" />
+            </label>
+            <label class="wide entry-advanced">
+              비고
+              <input id="noteInput" type="text" />
+            </label>
+            <fieldset id="weightsField" class="weights-box group-only entry-advanced">
+              <legend>사용 가중치</legend>
+              <div id="weightInputs" class="weights-grid"></div>
+            </fieldset>
+            <div class="form-actions">
+              <button class="secondary-button" id="toggleAdvancedButton" type="button">상세 입력</button>
+              <button class="secondary-button" id="cancelEditButton" type="button">취소</button>
+              <button class="primary-button" type="submit">저장</button>
+            </div>
+          </form>
+
+          <section class="panel">
+            <div class="panel-header">
+              <h3>거래 내역</h3>
+              <div class="filter-row">
+                <select id="filterCategory"></select>
+                <select id="filterMethod"></select>
+              </div>
+            </div>
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>날짜</th>
+                    <th>유형</th>
+                    <th>분류</th>
+                    <th>항목</th>
+                    <th class="group-only">결제자</th>
+                    <th class="group-only">사용자</th>
+                    <th>결제수단</th>
+                    <th>현지금액</th>
+                    <th>적용환율</th>
+                    <th>KRW</th>
+                    <th></th>
+                  </tr>
+                </thead>
+                <tbody id="transactionRows"></tbody>
+              </table>
+            </div>
+          </section>
+        </section>
+
+        <section id="cashView" class="view">
+          <div class="dashboard-layout">
+            <section class="panel">
+              <div class="panel-header">
+                <h3>통화별 잔액</h3>
+              </div>
+              <div id="cashBalanceRows" class="cash-list"></div>
+            </section>
+            <section class="panel">
+              <div class="panel-header">
+                <h3>일자별 현금</h3>
+                <input id="cashDateInput" type="date" />
+              </div>
+              <div id="dailyCashRows" class="cash-list"></div>
+            </section>
+          </div>
+        </section>
+
+        <section id="settlementView" class="view">
+          <section class="panel">
+            <div class="panel-header">
+              <h3>개인별 정산</h3>
+            </div>
+            <div id="settlementRows" class="settlement-list"></div>
+          </section>
+        </section>
+
+        <section id="settingsView" class="view">
+          <div class="settings-grid">
+            <section class="panel">
+              <div class="panel-header">
+                <h3>여행</h3>
+              </div>
+              <label>
+                여행명
+                <input id="tripNameInput" type="text" />
+              </label>
+              <label>
+                여행지역(복수 가능)
+                <input id="tripRegionsInput" type="text" placeholder="예: 콜롬비아, 파나마, 미국" />
+              </label>
+              <div class="two-col">
+                <label>
+                  시작일
+                  <input id="tripStartInput" type="date" />
+                </label>
+                <label>
+                  종료일
+                  <input id="tripEndInput" type="date" />
+                </label>
+              </div>
+              <label>
+                정산 기준 통화
+                <input id="homeCurrencyInput" type="text" maxlength="3" />
+              </label>
+              <div class="two-col">
+                <label>
+                  여행형태
+                  <select id="travelModeInput">
+                    <option value="solo">혼자</option>
+                    <option value="group">동행 있음</option>
+                  </select>
+                </label>
+                <label id="participantCountField" class="group-only">
+                  인원수
+                  <input id="participantCountInput" type="number" min="1" max="20" />
+                </label>
+              </div>
+              <button id="saveTripButton" class="primary-button" type="button">저장</button>
+            </section>
+
+            <section class="panel">
+              <div class="panel-header">
+                <h3>통화</h3>
+              </div>
+              <div class="settings-row settings-header">
+                <span>통화 코드</span>
+                <span>초기 현금</span>
+                <span>초기 환율</span>
+                <span></span>
+              </div>
+              <div id="currencySettings" class="settings-list"></div>
+              <div class="settings-actions">
+                <button id="addCurrencyButton" class="secondary-button" type="button">통화 추가</button>
+                <button id="saveCurrencyButton" class="primary-button" type="button">통화 저장</button>
+              </div>
+            </section>
+
+            <section class="panel">
+              <div class="panel-header">
+                <h3>참가자</h3>
+              </div>
+              <div id="participantSettings" class="settings-list"></div>
+              <div class="settings-actions">
+                <button id="addParticipantButton" class="secondary-button" type="button">참가자 추가</button>
+                <button id="saveParticipantButton" class="primary-button" type="button">참가자 저장</button>
+              </div>
+            </section>
+
+            <section class="panel">
+              <div class="panel-header">
+                <h3>분류</h3>
+              </div>
+              <div id="categorySettings" class="chip-editor"></div>
+              <div class="inline-add">
+                <input id="newCategoryInput" type="text" />
+                <button id="addCategoryButton" class="secondary-button" type="button">추가</button>
+              </div>
+              <button id="saveCategoryButton" class="primary-button full-button" type="button">분류 저장</button>
+            </section>
+          </div>
+        </section>
+      </main>
+    </div>
+
+    <template id="emptyRowTemplate">
+      <tr>
+        <td colspan="9" class="empty-state">기록 없음</td>
+      </tr>
+    </template>
+
+    <script src="app.js?v=20260618-pwa"></script>
+  </body>
+</html>
