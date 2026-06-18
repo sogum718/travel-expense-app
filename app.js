@@ -283,6 +283,15 @@ function formatMoney(value, currency) {
   })} ${currency}`;
 }
 
+function escapeHtml(value) {
+  return String(value ?? "")
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#039;");
+}
+
 function getCurrency(code) {
   return state.currencies.find((currency) => currency.code === code) || { code, startingCash: 0, startingRate: "" };
 }
@@ -576,7 +585,7 @@ function syncModeUi(mode = state.travelMode) {
 
 function setCompactChrome(enabled) {
   document.body.classList.toggle("compact-chrome", enabled);
-  $("toggleChromeButton").textContent = enabled ? "메뉴 열기" : "메뉴 닫기";
+  $("toggleChromeButton").textContent = enabled ? "추가 메뉴" : "추가 메뉴 닫기";
   localStorage.setItem("travel-expense-compact-chrome", enabled ? "1" : "0");
 }
 
@@ -694,9 +703,9 @@ function renderRows(tbody, rows, colspan = 11) {
     if (colspan === 6) {
       tr.innerHTML = `
         <td>${item.date}</td>
-        <td>${item.category}</td>
-        <td>${item.item}</td>
-        <td>${item.paymentMethod}</td>
+        <td>${escapeHtml(item.category)}</td>
+        <td>${escapeHtml(item.item)}</td>
+        <td>${escapeHtml(item.paymentMethod)}</td>
         <td class="numeric">${formatMoney(item.amount, item.currency)}</td>
         <td class="numeric">${formatKrw(getKrw(item))}</td>
       `;
@@ -704,11 +713,11 @@ function renderRows(tbody, rows, colspan = 11) {
       tr.innerHTML = `
         <td>${item.date}</td>
         <td>${transactionTypes.find((type) => type.id === item.type)?.label || item.type}</td>
-        <td>${item.category}</td>
-        <td>${item.item}</td>
-        <td class="group-only">${item.payer}</td>
-        <td class="group-only">${formatUserWeights(item.weights)}</td>
-        <td>${item.paymentMethod}</td>
+        <td>${escapeHtml(item.category)}</td>
+        <td>${escapeHtml(item.item)}</td>
+        <td class="group-only">${escapeHtml(item.payer)}</td>
+        <td class="group-only">${escapeHtml(formatUserWeights(item.weights))}</td>
+        <td>${escapeHtml(item.paymentMethod)}</td>
         <td class="numeric">${formatMoney(item.amount, item.currency)}</td>
         <td class="numeric">${getDisplayRate(item) ? getDisplayRate(item).toLocaleString("ko-KR", { maximumFractionDigits: 4 }) : ""}</td>
         <td class="numeric">${formatKrw(getKrw(item))}</td>
@@ -1067,6 +1076,110 @@ function exportCsv() {
   download("travel-expenses.csv", [header.join(","), ...rows].join("\n"), "text/csv;charset=utf-8");
 }
 
+function getProjectYear() {
+  return Number((state.startDate || state.endDate || new Date().toISOString()).slice(0, 4)) || new Date().getFullYear();
+}
+
+function normalizeSmsDate(text) {
+  const year = getProjectYear();
+  const full = text.match(/(20\d{2})[.\-/년\s]+(\d{1,2})[.\-/월\s]+(\d{1,2})/);
+  if (full) {
+    return `${full[1]}-${full[2].padStart(2, "0")}-${full[3].padStart(2, "0")}`;
+  }
+  const short = text.match(/(?:^|\D)(\d{1,2})[./월-]\s*(\d{1,2})(?:일)?(?:\D|$)/);
+  if (!short) return "";
+  return `${year}-${short[1].padStart(2, "0")}-${short[2].padStart(2, "0")}`;
+}
+
+function isWithinTrip(date) {
+  return Boolean(date);
+}
+
+function getSmsBlocks(text) {
+  return text
+    .split(/\n{2,}|(?=\[[^\]]*(?:카드|CARD)[^\]]*\])|(?=(?:KB|국민|신한|삼성|현대|롯데|우리|하나|NH|농협|BC|비씨|카카오|토스)[^\n]{0,12}카드)/i)
+    .map((block) => block.trim())
+    .filter(Boolean);
+}
+
+function parseMoney(value) {
+  return Number(String(value || "").replace(/[^\d.]/g, ""));
+}
+
+function detectMerchant(text) {
+  const cleaned = text
+    .replace(/\[[^\]]+\]/g, " ")
+    .replace(/(승인|일시불|체크|카드|이용|사용|결제|취소|누적|잔액|국내|해외|KRW|USD|원|₩|\$)/gi, " ")
+    .replace(/20\d{2}[.\-/년\s]+\d{1,2}[.\-/월\s]+\d{1,2}(?:일)?/g, " ")
+    .replace(/\d{1,2}[./월-]\s*\d{1,2}(?:일)?(?:\s+\d{1,2}:\d{2})?/g, " ")
+    .replace(/[0-9,]+(?:\.\d+)?/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  const words = cleaned.split(" ").filter((word) => word.length > 1);
+  return words.slice(-4).join(" ") || "카드 지출";
+}
+
+function parseSmsBlock(block) {
+  if (/취소|승인취소|매출취소/.test(block)) return null;
+  const date = normalizeSmsDate(block);
+  if (!isWithinTrip(date)) return null;
+
+  const foreign = block.match(/\b(USD|EUR|JPY|COP|IDR|THB|VND|PHP|MYR|SGD|AUD|CAD)\b\s*([0-9,]+(?:\.\d+)?)/i);
+  const krwMatches = [...block.matchAll(/([0-9,]+)\s*원/g)].map((match) => parseMoney(match[1])).filter((value) => value > 0);
+  const krw = krwMatches.length ? krwMatches[0] : 0;
+  const currency = foreign ? foreign[1].toUpperCase() : state.homeCurrency;
+  const amount = foreign ? parseMoney(foreign[2]) : krw;
+  if (!amount) return null;
+
+  const payer = isSoloTrip() ? state.participants[0] || "나" : $("payerInput").value || state.participants[0] || "나";
+  const weights = Object.fromEntries(state.participants.map((name) => [name, isSoloTrip() ? (name === payer ? 1 : 0) : 1]));
+  const exchangeRate = currency === state.homeCurrency ? 1 : krw && amount ? krw / amount : "";
+
+  return {
+    id: crypto.randomUUID(),
+    date,
+    type: "expense",
+    category: state.categories.includes("기타") ? "기타" : state.categories[0],
+    item: detectMerchant(block),
+    note: `문자 가져오기: ${block.replace(/\s+/g, " ").slice(0, 120)}`,
+    currency,
+    amount,
+    paymentMethod: "카드",
+    payer,
+    krwActual: krw || "",
+    exchangeRate,
+    weights,
+    createdAt: Date.now() + Math.floor(Math.random() * 1000),
+  };
+}
+
+function isDuplicateSmsTransaction(transaction) {
+  return state.transactions.some(
+    (item) =>
+      item.date === transaction.date &&
+      item.item === transaction.item &&
+      item.currency === transaction.currency &&
+      Number(item.amount || 0) === Number(transaction.amount || 0) &&
+      Math.round(getKrw(item)) === Math.round(getKrw(transaction)),
+  );
+}
+
+function importSmsTransactions() {
+  const source = $("smsImportText").value.trim();
+  if (!source) {
+    $("smsImportResult").textContent = "붙여넣은 문자가 없습니다.";
+    return;
+  }
+  const parsed = getSmsBlocks(source).map(parseSmsBlock).filter(Boolean);
+  const unique = parsed.filter((transaction) => !isDuplicateSmsTransaction(transaction));
+  state.transactions.push(...unique);
+  saveState();
+  renderAll();
+  $("smsImportText").value = "";
+  const skipped = parsed.length - unique.length;
+  $("smsImportResult").textContent = `${unique.length}건 추가됨${skipped ? `, 중복 ${skipped}건 제외` : ""}. 날짜나 금액을 읽지 못한 문자는 건너뛰었습니다.`;
+}
+
 document.addEventListener("click", (event) => {
   const target = event.target;
   if (!(target instanceof HTMLElement)) return;
@@ -1105,6 +1218,9 @@ document.addEventListener("click", (event) => {
   }
   if (target.id === "toggleChromeButton") {
     setCompactChrome(!document.body.classList.contains("compact-chrome"));
+  }
+  if (target.id === "importSmsButton") {
+    importSmsTransactions();
   }
   if (target.id === "saveTripButton") {
     state.tripName = $("tripNameInput").value.trim() || "새 여행";
@@ -1228,6 +1344,16 @@ setCompactChrome(
 
 if ("serviceWorker" in navigator) {
   window.addEventListener("load", () => {
-    navigator.serviceWorker.register("./sw.js").catch(() => {});
+    navigator.serviceWorker.getRegistrations?.().then((registrations) => {
+      registrations.forEach((registration) => registration.unregister());
+    }).catch(() => {});
   });
+}
+
+if ("caches" in window) {
+  caches.keys().then((keys) => {
+    keys
+      .filter((key) => key.startsWith("travel-expense-app"))
+      .forEach((key) => caches.delete(key));
+  }).catch(() => {});
 }

@@ -31,7 +31,8 @@ body {
 
 button,
 input,
-select {
+select,
+textarea {
   font: inherit;
 }
 
@@ -520,7 +521,8 @@ label {
 }
 
 input,
-select {
+select,
+textarea {
   width: 100%;
   min-height: 38px;
   border: 1px solid var(--line);
@@ -528,6 +530,26 @@ select {
   padding: 0 10px;
   color: var(--ink);
   background: #fff;
+}
+
+textarea {
+  min-height: 130px;
+  padding: 10px;
+  line-height: 1.45;
+  resize: vertical;
+}
+
+.sms-import-panel {
+  margin-bottom: 16px;
+}
+
+.sms-import-text {
+  font-size: 14px;
+}
+
+.sms-import-result {
+  min-height: 18px;
+  margin: 10px 0 0;
 }
 
 .wide {
@@ -721,10 +743,16 @@ select {
   }
 
   .nav-tabs {
-    display: flex;
+    display: flex !important;
     gap: 6px;
+    width: 100%;
     overflow-x: auto;
     padding-bottom: 2px;
+    scrollbar-width: none;
+  }
+
+  .nav-tabs::-webkit-scrollbar {
+    display: none;
   }
 
   .nav-tab {
@@ -735,13 +763,20 @@ select {
   }
 
   .compact-chrome .project-switcher,
-  .compact-chrome .nav-tabs,
   .compact-chrome .sidebar-actions,
   .compact-chrome .topbar-actions,
   .compact-chrome .eyebrow,
   .compact-chrome .trip-meta,
   .compact-chrome .brand p {
     display: none;
+  }
+
+  .compact-chrome .nav-tabs {
+    display: flex !important;
+    visibility: visible;
+    margin-top: 10px;
+    max-height: none;
+    opacity: 1;
   }
 
   .compact-chrome .sidebar {
